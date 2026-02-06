@@ -74,10 +74,10 @@ const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ onClose, initialCha
                     <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-200 bg-slate-100/50 text-xs font-bold text-slate-500 uppercase">
                         <div className="col-span-1 text-center" style={{ marginLeft: '6px' }}>#</div>
                         <div className="col-span-2 text-center" style={{ marginLeft: '68px' }}>玩家</div>
-                        <div className="col-span-3 text-center" style={{ marginLeft: '67px' }}>分数</div>
+                        <div className="col-span-3 text-center" style={{ marginLeft: '64px' }}>分数</div>
                         <div className="col-span-1 text-center" style={{ marginRight: '5px' }}>评级</div>
                         <div className="col-span-3 text-center" style={{ marginRight: '10px' }}>评价</div>
-                        <div className="col-span-1 text-center" style={{ marginRight: '7px' }}>时间</div>
+                        <div className="col-span-1 text-center" style={{ marginRight: '15px' }}>时间</div>
                     </div>
                     <div className="overflow-y-auto custom-scroll flex-1 p-2">
                         {loading ? (

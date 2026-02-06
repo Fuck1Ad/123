@@ -1,0 +1,818 @@
+
+import { useState, useEffect, useCallback } from 'react';
+import { 
+    GameState, Difficulty, GeneralStats, Talent, Challenge, 
+    Phase, GameStatus, SubjectKey, OIStats, GameEvent, 
+    EventChoice, ExamResult, ClubId, Item, WeekendActivity
+} from '../types';
+import { DIFFICULTY_PRESETS } from '../data/constants';
+import { PHASE_EVENTS, BASE_EVENTS, CHAINED_EVENTS, generateSummerLifeEvent, generateStudyEvent, generateOIEvent, generateRandomFlavorEvent } from '../data/events';
+import { WEEKEND_ACTIVITIES, STATUSES, ACHIEVEMENTS } from '../data/mechanics';
+import { modifyOI, modifySub, mapAiEventToGameEvent } from '../data/utils';
+import { generateBatchGameEvents } from '../lib/gemini';
+
+const STORAGE_KEY = 'recall_save_v1';
+
+const getInitialSubjects = (): Record<SubjectKey, { aptitude: number; level: number }> => ({
+    chinese: { aptitude: 0, level: 0 },
+    math: { aptitude: 0, level: 0 },
+    english: { aptitude: 0, level: 0 },
+    physics: { aptitude: 0, level: 0 },
+    chemistry: { aptitude: 0, level: 0 },
+    biology: { aptitude: 0, level: 0 },
+    history: { aptitude: 0, level: 0 },
+    geography: { aptitude: 0, level: 0 },
+    politics: { aptitude: 0, level: 0 }
+});
+
+const getInitialOIStats = (): OIStats => ({
+    dp: 0, ds: 0, math: 0, string: 0, graph: 0, misc: 0
+});
+
+const getInitialGameState = (): GameState => ({
+    isPlaying: false,
+    isAiGenerating: false, 
+    eventQueue: [],
+    aiBuffer: [], // Init AI Buffer
+    recentEventIds: [], // Init Repetition Buffer
+    phase: Phase.INIT,
+    week: 1,
+    totalWeeksInPhase: 0,
+    subjects: getInitialSubjects(),
+    general: { mindset: 50, experience: 0, luck: 50, romance: 0, health: 100, money: 0, efficiency: 10 },
+    initialGeneral: { mindset: 50, experience: 0, luck: 50, romance: 0, health: 100, money: 0, efficiency: 10 },
+    oiStats: getInitialOIStats(),
+    selectedSubjects: [],
+    competition: 'None',
+    club: null,
+    hasSelectedClub: false,
+    romancePartner: null,
+    className: '', 
+    log: [],
+    currentEvent: null,
+    chainedEvent: null,
+    eventResult: null,
+    history: [],
+    examResult: null,
+    midtermRank: null,
+    competitionResults: [],
+    popupCompetitionResult: null,
+    popupExamResult: null,
+    triggeredEvents: [],
+    isSick: false,
+    isGrounded: false,
+    debugMode: false,
+    activeStatuses: [],
+    unlockedAchievements: [],
+    achievementPopup: null,
+    difficulty: 'NORMAL',
+    activeChallengeId: null,
+    isWeekend: false,
+    weekendActionPoints: 0,
+    weekendProcessed: false,
+    activeMiniGame: null,
+    sleepCount: 0,
+    rejectionCount: 0,
+    talents: [],
+    inventory: [],
+    theme: 'light',
+    hasSleptThisWeek: false,
+    dreamtExam: false,
+    availableWeekendActivityIds: undefined
+});
+
+export const useGameLogic = () => {
+    const [state, setState] = useState<GameState>(getInitialGameState());
+    const [weekendResult, setWeekendResult] = useState<{ activity: WeekendActivity; resultText: string; diff: string[] } | null>(null);
+    const [hasSave, setHasSave] = useState(false);
+
+    useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) setHasSave(true);
+    }, []);
+
+    const advancePhase = useCallback(() => {
+        setState(prev => {
+            let nextPhase = Phase.SEMESTER_1; 
+            let weeks = 21; 
+            const currentPhase = prev.phase;
+
+            switch (currentPhase) {
+                case Phase.INIT: nextPhase = Phase.SUMMER; weeks = 8; break;
+                case Phase.SUMMER: nextPhase = Phase.MILITARY; weeks = 2; break; 
+                case Phase.MILITARY: nextPhase = Phase.SELECTION; weeks = 0; break; 
+                case Phase.SELECTION: nextPhase = Phase.PLACEMENT_EXAM; weeks = 0; break;
+                case Phase.PLACEMENT_EXAM: nextPhase = Phase.SEMESTER_1; weeks = 21; break; 
+                case Phase.MIDTERM_EXAM: nextPhase = Phase.SUBJECT_RESELECTION; weeks = 0; break;
+                case Phase.SUBJECT_RESELECTION: nextPhase = Phase.SEMESTER_1; weeks = 21; break; 
+                case Phase.SEMESTER_1: 
+                    nextPhase = Phase.FINAL_EXAM; weeks = 0; 
+                    break;
+                case Phase.CSP_EXAM: nextPhase = Phase.SEMESTER_1; weeks = prev.totalWeeksInPhase; break; 
+                case Phase.NOIP_EXAM: nextPhase = Phase.SEMESTER_1; weeks = prev.totalWeeksInPhase; break;
+                case Phase.FINAL_EXAM: nextPhase = Phase.ENDING; weeks = 0; break;
+                default: nextPhase = Phase.ENDING; weeks = 0;
+            }
+            
+            return {
+                ...prev,
+                phase: nextPhase,
+                week: 1,
+                totalWeeksInPhase: weeks,
+                isPlaying: nextPhase !== Phase.ENDING && nextPhase !== Phase.SELECTION,
+                log: [...prev.log, { message: `进入新阶段: ${nextPhase}`, type: 'info', timestamp: Date.now() }],
+                aiBuffer: [] // Clear AI buffer on phase change
+            };
+        });
+    }, []);
+
+    // --- Achievement Check Effect ---
+    useEffect(() => {
+        // STRICT MODE CHECK
+        const isEligibleMode = state.difficulty === 'REALITY' || !!state.activeChallengeId;
+        if (!isEligibleMode) return;
+
+        const newUnlocked: string[] = [];
+        const add = (id: string) => { 
+            if (!state.unlockedAchievements.includes(id) && !newUnlocked.includes(id)) {
+                newUnlocked.push(id);
+            }
+        };
+
+        if (state.general.money >= 200) add('rich');
+        if (state.general.money <= -250) add('in_debt');
+        if (state.sleepCount >= 10) add('sleep_god');
+        if (state.rejectionCount >= 5) add('nice_person');
+        if (state.general.health < 10 && state.phase === Phase.SEMESTER_1 && state.week > 10) add('survival');
+        if (state.general.romance >= 95) add('romance_master');
+
+        // Academic Achievements Check
+        if (state.examResult) {
+            // Check if it's an Academic Exam, NOT a Competition
+            const isAcademic = state.examResult.type === 'ACADEMIC';
+            
+            if (isAcademic) {
+                if (state.examResult.rank === 1) add('top_rank');
+                if (state.examResult.totalStudents && state.examResult.rank === state.examResult.totalStudents) add('bottom_rank');
+                
+                const isFullScore = Object.entries(state.examResult.scores).some(([subj, score]) => {
+                    const max = ['chinese', 'math', 'english'].includes(subj) ? 150 : 100;
+                    return (score as number) >= max;
+                });
+                if (isFullScore) add('nerd');
+            }
+        }
+
+        if (newUnlocked.length > 0) {
+            const lastId = newUnlocked[newUnlocked.length - 1];
+            setState(prev => {
+                const newState = {
+                    ...prev,
+                    unlockedAchievements: [...prev.unlockedAchievements, ...newUnlocked],
+                    achievementPopup: ACHIEVEMENTS[lastId]
+                };
+                // 持久化保存成就
+                localStorage.setItem('recall_save_v1', JSON.stringify(newState));
+                return newState;
+            });
+            
+            setTimeout(() => setState(prev => ({ ...prev, achievementPopup: null })), 5000);
+        }
+    }, [state.general.money, state.general.health, state.sleepCount, state.rejectionCount, state.examResult, state.difficulty, state.phase, state.activeChallengeId]);
+
+
+    // --- MAIN GAME LOOP ---
+    useEffect(() => {
+        if (!state.isPlaying || state.currentEvent || state.isWeekend || state.weekendProcessed || state.isAiGenerating) return;
+
+        const processTurn = async () => {
+            // 0. Handle Queue first
+            if (state.eventQueue.length > 0) {
+                const [next, ...rest] = state.eventQueue;
+                setState(prev => ({ ...prev, currentEvent: next, eventQueue: rest, isPlaying: false }));
+                return;
+            }
+
+            // 1. Check Phase Progression
+            if (state.totalWeeksInPhase > 0 && state.week > state.totalWeeksInPhase) {
+                advancePhase();
+                return;
+            }
+
+            // 2. Fixed Triggers (Exams)
+            if (state.phase === Phase.SEMESTER_1 && state.week === 7 && state.competition === 'OI' && !state.triggeredEvents.includes('csp_exam_trigger')) {
+                setState(prev => ({ ...prev, phase: Phase.CSP_EXAM, isPlaying: false, triggeredEvents: [...prev.triggeredEvents, 'csp_exam_trigger'] }));
+                return;
+            }
+            if (state.phase === Phase.SEMESTER_1 && state.week === 11 && !state.midtermRank) {
+                setState(prev => ({ ...prev, phase: Phase.MIDTERM_EXAM, isPlaying: false }));
+                return;
+            }
+            if (state.phase === Phase.SEMESTER_1 && state.week === 13 && state.competition === 'OI' && !state.triggeredEvents.includes('noip_exam_trigger')) {
+                 setState(prev => ({ ...prev, phase: Phase.NOIP_EXAM, isPlaying: false, triggeredEvents: [...prev.triggeredEvents, 'noip_exam_trigger'] }));
+                return;
+            }
+
+            // 3. Generate Week's Events
+            let weekEvents: GameEvent[] = [];
+            const phasePool = PHASE_EVENTS[state.phase] || [];
+
+            // 3a. Fixed Events in current Phase/Week (Priority)
+            const pendingFixed = phasePool.filter(e => 
+                e.triggerType === 'FIXED' && 
+                e.fixedWeek === state.week && 
+                !state.triggeredEvents.includes(e.id)
+            );
+            weekEvents.push(...pendingFixed);
+            
+            // 3a.2 Global Negative Triggers (Debt Event)
+            if (state.general.money < 0) {
+                 const debt = Math.abs(state.general.money);
+                 const prob = Math.min(1, Math.sqrt(debt) / 30);
+                 if (Math.random() < prob && !state.recentEventIds.includes('debt_collection')) {
+                     weekEvents.push(BASE_EVENTS['debt_collection']);
+                 }
+            }
+
+            // === AI BRANCH LOGIC ===
+            if (state.difficulty === 'AI_STORY' && weekEvents.length === 0) {
+                if (state.aiBuffer.length > 0) {
+                     const [nextAiEvent, ...remainingBuffer] = state.aiBuffer;
+                     applyWeeklyUpdates(nextAiEvent, remainingBuffer);
+                     return;
+                } 
+                setState(prev => ({ ...prev, isAiGenerating: true, isPlaying: false }));
+                try {
+                    const aiEventsJson = await generateBatchGameEvents(state); 
+                    const aiEvents = aiEventsJson.map(mapAiEventToGameEvent);
+                    if (aiEvents.length > 0) {
+                        const [first, ...rest] = aiEvents;
+                        setState(prev => {
+                             const { updatedGeneral, updatedStatuses } = calculateWeeklyUpdates(prev);
+                             return {
+                                ...prev,
+                                general: updatedGeneral,
+                                activeStatuses: updatedStatuses,
+                                isAiGenerating: false,
+                                currentEvent: first,
+                                aiBuffer: rest,
+                                isPlaying: false
+                             };
+                        });
+                        return; 
+                    }
+                } catch (e) {
+                    console.error("Fallback to standard events", e);
+                    setState(prev => ({ ...prev, isAiGenerating: false }));
+                }
+            }
+            // === END AI BRANCH ===
+
+            // 3b. Conditional Events
+            if (weekEvents.length === 0) {
+                const conditionalEvents = phasePool.filter(e => 
+                    e.triggerType === 'CONDITIONAL' &&
+                    (!e.once || !state.triggeredEvents.includes(e.id)) &&
+                    e.condition && e.condition(state)
+                );
+                if (conditionalEvents.length > 0) {
+                     const picked = conditionalEvents[Math.floor(Math.random() * conditionalEvents.length)];
+                     weekEvents.push(picked);
+                }
+            }
+
+            // 3c. Regular Events (Phase Specific Randoms)
+            if (weekEvents.length === 0) {
+                // Filter out recently triggered events to prevent repetition
+                const validRandoms = phasePool.filter(e => 
+                    e.triggerType === 'RANDOM' &&
+                    (!e.once || !state.triggeredEvents.includes(e.id)) &&
+                    (!e.condition || e.condition(state)) &&
+                    !state.recentEventIds.includes(e.id) // Anti-repetition check
+                );
+
+                if (state.phase === Phase.SUMMER) {
+                     // 50% chance for specific Summer events (like hot day), 50% for generator
+                     if (validRandoms.length > 0 && Math.random() < 0.5) {
+                         weekEvents.push(validRandoms[Math.floor(Math.random() * validRandoms.length)]);
+                     } else {
+                         weekEvents.push(generateSummerLifeEvent(state));
+                     }
+                } else if (state.phase === Phase.MILITARY) {
+                     if (validRandoms.length > 0) weekEvents.push(validRandoms[Math.floor(Math.random() * validRandoms.length)]);
+                } else if (state.phase === Phase.SEMESTER_1) {
+                    // Force generator priority but allow pool events
+                    if (validRandoms.length > 0 && Math.random() < 0.4) {
+                         weekEvents.push(validRandoms[Math.floor(Math.random() * validRandoms.length)]);
+                    } else {
+                        // Generator logic
+                        const roll = Math.random();
+                        if (state.competition === 'OI' && roll < 0.3) weekEvents.push(generateOIEvent(state));
+                        else if (roll < 0.6) weekEvents.push(generateRandomFlavorEvent(state));
+                        else weekEvents.push(generateStudyEvent(state));
+                    }
+                } else {
+                     weekEvents.push(Math.random() < 0.7 ? generateStudyEvent(state) : generateRandomFlavorEvent(state));
+                }
+            }
+
+            const eventsToMark = weekEvents
+                .filter(e => (e.once || e.triggerType === 'FIXED') && e.id !== 'debt_collection')
+                .map(e => e.id);
+
+            const [first, ...rest] = weekEvents;
+            
+            if (first) {
+                applyWeeklyUpdates(first, rest, eventsToMark);
+            } else {
+                startWeekend();
+            }
+        };
+
+        const timer = setTimeout(processTurn, 1000); 
+        return () => clearTimeout(timer);
+    }, [state.isPlaying, state.currentEvent, state.isWeekend, state.week, state.phase, state.eventQueue.length, state.midtermRank, advancePhase, state.competition, state.triggeredEvents, state.isAiGenerating, state.aiBuffer, state.recentEventIds]);
+
+    const calculateWeeklyUpdates = (prevState: GameState) => {
+        const currentMoney = prevState.general.money;
+        let debtLevel = 0;
+        if (currentMoney < -800) debtLevel = 5;
+        else if(currentMoney < -350)debtLevel=4;
+        else if (currentMoney < -180) debtLevel = 3;
+        else if (currentMoney < -80) debtLevel = 2;
+        else if (currentMoney < 0) debtLevel = 1;
+
+        const cleanStatuses = prevState.activeStatuses.filter(s => !s.id.startsWith('debt_'));
+        let newStatuses = [...cleanStatuses];
+        let penaltyMindset = 0;
+        let penaltyRomance = 0;
+
+        if (debtLevel > 0) {
+            newStatuses.push({ ...STATUSES[`debt_${debtLevel}`], duration: 1 });
+            if (debtLevel === 1) { penaltyMindset = 5; penaltyRomance = 3; }
+            if (debtLevel === 2) { penaltyMindset = 10; penaltyRomance = 6; }
+            if (debtLevel === 3) { penaltyMindset = 20; penaltyRomance = 12; }
+            if (debtLevel === 4) { penaltyMindset = 40; penaltyRomance = 24; }
+            if (debtLevel === 5) { penaltyMindset = 80; penaltyRomance = 48; }
+        }
+
+        const updatedGeneral = {
+            ...prevState.general,
+            money: prevState.general.money + 2, 
+            mindset: Math.max(0, prevState.general.mindset - penaltyMindset),
+            romance: Math.max(0, prevState.general.romance - penaltyRomance)
+        };
+
+        return { updatedGeneral, updatedStatuses: newStatuses };
+    };
+
+    const applyWeeklyUpdates = (currentEvent: GameEvent, nextQueue: GameEvent[] = [], newTriggeredEvents: string[] = []) => {
+        setState(prev => {
+            const { updatedGeneral, updatedStatuses } = calculateWeeklyUpdates(prev);
+            
+            // Update Anti-Repetition Buffer
+            let newRecentIds = [...prev.recentEventIds];
+            // Only track RANDOM events for repetition prevention, ignore generated/fixed
+            if (currentEvent.triggerType === 'RANDOM') {
+                newRecentIds.push(currentEvent.id);
+                if (newRecentIds.length > 4) newRecentIds.shift(); // Keep last 4
+            }
+
+            return {
+                ...prev,
+                activeStatuses: updatedStatuses,
+                general: updatedGeneral,
+                currentEvent: currentEvent,
+                eventQueue: nextQueue,
+                triggeredEvents: [...prev.triggeredEvents, ...newTriggeredEvents],
+                recentEventIds: newRecentIds,
+                isPlaying: false,
+                aiBuffer: prev.difficulty === 'AI_STORY' && prev.aiBuffer.includes(currentEvent) 
+                    ? prev.aiBuffer.filter(e => e !== currentEvent)
+                    : prev.aiBuffer
+            };
+        });
+    };
+
+    const startWeekend = () => {
+        setState(prev => {
+            let availableIds = undefined;
+            if (prev.difficulty === 'REALITY') {
+                const validActivities = WEEKEND_ACTIVITIES.filter(a => !a.condition || a.condition(prev));
+                let validIds = validActivities.map(a => a.id);
+                for (let i = validIds.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [validIds[i], validIds[j]] = [validIds[j], validIds[i]];
+                }
+                availableIds = validIds.slice(0, 6);
+            }
+
+            return {
+                ...prev,
+                currentEvent: null,
+                eventResult: null,
+                isWeekend: true,
+                isPlaying: false,
+                weekendActionPoints: 2,
+                availableWeekendActivityIds: availableIds
+            };
+        });
+    };
+
+    const saveGame = () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        setHasSave(true);
+        setState(s => ({ ...s, log: [...s.log, { message: "游戏进度已保存。", type: 'success', timestamp: Date.now() }] }));
+    };
+
+    const loadGame = (): boolean => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const loaded = JSON.parse(saved);
+                // 确保成就不会丢失
+                if (loaded.unlockedAchievements && Array.isArray(loaded.unlockedAchievements)) {
+                    setState(loaded);
+                    return true;
+                }
+            } catch (e) {
+                console.error("Failed to load save", e);
+                return false;
+            }
+        }
+        return false;
+    };
+
+    const startGameState = (difficulty: Difficulty, customStats: GeneralStats, selectedTalents: Talent[], activeChallenge?: Challenge | null) => {
+        let initialGeneral = { ...DIFFICULTY_PRESETS['NORMAL'].stats };
+        const effectiveDifficulty = activeChallenge ? 'REALITY' : (difficulty === 'CUSTOM' ? 'NORMAL' : difficulty);
+        
+        if (difficulty === 'CUSTOM' && !activeChallenge) {
+            initialGeneral = { ...customStats };
+        } else if (difficulty === 'AI_STORY') {
+             initialGeneral = DIFFICULTY_PRESETS['AI_STORY'] ? { ...DIFFICULTY_PRESETS['AI_STORY'].stats } : { ...DIFFICULTY_PRESETS['NORMAL'].stats };
+        } else {
+             initialGeneral = { ...DIFFICULTY_PRESETS[effectiveDifficulty].stats };
+        }
+        
+        let initialStatuses: GameStatus[] = [];
+        if (effectiveDifficulty === 'REALITY') {
+            initialStatuses.push({ ...STATUSES['anxious'], duration: 4 });
+        }
+        
+        if (activeChallenge) {
+             if (activeChallenge.conditions.initialStats) {
+                 initialGeneral = { ...initialGeneral, ...activeChallenge.conditions.initialStats };
+             }
+             if (activeChallenge.id === 'c_sleep_king') {
+                 initialStatuses.push({ ...STATUSES['sleep_compulsion'], duration: 999 });
+             }
+        }
+
+        const rolledSubjects = getInitialSubjects();
+        (Object.keys(rolledSubjects) as SubjectKey[]).forEach(k => {
+            rolledSubjects[k] = { aptitude: Math.floor(Math.random() * 40 + 60), level: Math.floor(Math.random() * 10 + 5) };
+            if (effectiveDifficulty === 'NORMAL' || difficulty === 'AI_STORY') { rolledSubjects[k].aptitude += 15; rolledSubjects[k].level += 5; }
+        });
+
+        let tempState: GameState = {
+            ...getInitialGameState(),
+            subjects: rolledSubjects,
+            general: initialGeneral,
+            initialGeneral: { ...initialGeneral },
+            activeStatuses: initialStatuses,
+            talents: selectedTalents,
+            oiStats: getInitialOIStats(),
+            difficulty: difficulty, 
+            activeChallengeId: activeChallenge ? activeChallenge.id : null,
+            hasSleptThisWeek: false
+        };
+        
+        selectedTalents.forEach(t => {
+            if (t.effect) {
+                const updates = t.effect(tempState);
+                if(updates.general) tempState.general = { ...tempState.general, ...updates.general };
+                if(updates.subjects) tempState.subjects = { ...tempState.subjects, ...updates.subjects }; 
+                if(updates.oiStats) tempState.oiStats = { ...tempState.oiStats, ...updates.oiStats };
+            }
+        });
+        tempState.initialGeneral = { ...tempState.general };
+
+        const firstEvent = PHASE_EVENTS[Phase.SUMMER].find(e => e.id === 'sum_goal_selection');
+        setState({
+            ...tempState,
+            unlockedAchievements: state.unlockedAchievements, 
+            phase: Phase.SUMMER,
+            week: 1,
+            totalWeeksInPhase: 8,
+            currentEvent: firstEvent || null,
+            triggeredEvents: firstEvent ? [firstEvent.id] : [],
+            log: [{ message: "八中模拟器启动。", type: 'success', timestamp: Date.now() }],
+            isPlaying: false
+        });
+        
+        // Only grant First Blood if eligible
+        if (!activeChallenge && !state.unlockedAchievements.includes('first_blood') && difficulty === 'REALITY') {
+            setTimeout(() => {
+                setState(prev => ({
+                    ...prev,
+                    unlockedAchievements: [...prev.unlockedAchievements, 'first_blood'],
+                    achievementPopup: ACHIEVEMENTS['first_blood']
+                }));
+                setTimeout(() => setState(prev => ({ ...prev, achievementPopup: null })), 5000);
+            }, 100);
+        }
+    };
+
+    const handleChoice = (choice: EventChoice, visualizer?: (oldS: GameState, newS: GameState) => string[]) => {
+        const oldState = { ...state };
+        let updates = choice.action(state);
+        
+        if (choice.nextEventId && CHAINED_EVENTS[choice.nextEventId]) {
+            updates.chainedEvent = CHAINED_EVENTS[choice.nextEventId];
+        }
+        
+        if (state.activeChallengeId === 'c_sleep_king' && (choice.text.includes('睡') || choice.text.includes('梦') || choice.text.includes('补觉'))) {
+             updates = { ...updates, hasSleptThisWeek: true };
+        }
+
+        const newState = { ...state, ...updates };
+        const diff = visualizer ? visualizer(oldState, newState) : [];
+        
+        setState(prev => ({ ...prev, ...updates, eventResult: { choice, diff } }));
+    };
+
+    const handleEventConfirm = () => {
+        if (state.chainedEvent) {
+            setState(prev => ({ ...prev, currentEvent: prev.chainedEvent, chainedEvent: null, eventResult: null }));
+            return;
+        }
+        
+        if (state.eventQueue.length > 0) {
+             setState(prev => {
+                 const [next, ...rest] = prev.eventQueue;
+                 return { ...prev, currentEvent: next, eventQueue: rest, eventResult: null };
+             });
+             return;
+        }
+
+        const skipWeekend = state.phase === Phase.SUMMER || state.phase === Phase.MILITARY;
+        if (skipWeekend) {
+             setState(prev => ({ 
+                 ...prev, 
+                 currentEvent: null, 
+                 eventResult: null,
+                 isWeekend: false, 
+                 week: prev.week + 1, 
+                 hasSleptThisWeek: false, 
+                 isPlaying: true 
+            }));
+            return;
+        }
+
+        startWeekend();
+    };
+    
+    const handleClubSelect = (id: ClubId | 'none') => {
+        setState(prev => ({ 
+            ...prev, 
+            club: id === 'none' ? null : id,
+            hasSelectedClub: true 
+        }));
+    };
+    
+    const handleShopPurchase = (item: Item, effectVisualizer: () => void) => {
+        const updates = item.effect(state);
+        setState(prev => ({ ...prev, ...updates }));
+        effectVisualizer();
+    };
+
+    const handleWeekendActivityClick = (activity: WeekendActivity, visualizer?: (oldS: GameState, newS: GameState) => string[]) => {
+        if (state.weekendActionPoints <= 0) return;
+        
+        const oldState = { ...state };
+        let updates = activity.action(state);
+        let resultText = typeof activity.resultText === 'function' ? activity.resultText(state) : activity.resultText;
+
+        if (state.activeChallengeId === 'c_sleep_king' && (activity.id === 'w_sleep' || activity.name.includes('睡'))) {
+            updates = { 
+                ...updates, hasSleptThisWeek: true,
+                general: { ...updates.general, health: (updates.general?.health || oldState.general.health || 0) + 5, mindset: (updates.general?.mindset || oldState.general.mindset || 0) + 3 } as GeneralStats
+            };
+            
+            const roll = Math.random();
+            if (roll < 0.15) {
+                resultText = "梦里那个公式... e^(π√163) 居然是整数？你的数学直觉大幅提升！";
+                updates.oiStats = modifyOI(oldState, { math: 15, misc: 10 });
+                // @ts-ignore
+                updates.subjects = modifySub(oldState, ['math'], 10);
+            } else if (roll < 0.3) {
+                resultText = "不知是庄周做梦变成了蝴蝶，还是蝴蝶做梦变成了庄周。你感悟到了生命的真谛。";
+                // @ts-ignore
+                updates.general.mindset += 15; updates.general.efficiency += 5;
+            } else if (roll < 0.45 && !oldState.dreamtExam) {
+                resultText = "【预知梦】你好像梦到了期末考试的压轴题！虽然醒来只记得大概，但足够了！(考试运大幅提升)";
+                // @ts-ignore
+                updates.general.luck += 20; updates.dreamtExam = true;
+            } else if (roll < 0.6) {
+                resultText = "你在梦里又睡着了，进入了第二层梦境。在这里，一小时等于现实的一天。你利用这漫长的时间复习了全科内容。";
+                // @ts-ignore
+                updates.subjects = modifySub(oldState, ['math', 'chinese', 'english', 'physics'], 3);
+            } else if (roll < 0.75 && oldState.romancePartner) {
+                resultText = `梦里，${oldState.romancePartner}和你在一起啦。醒来时嘴角还挂着口水。`;
+                // @ts-ignore
+                updates.general.romance += 10; updates.general.mindset += 10;
+            }else if (roll<0.65){
+                resultText = `嘿嘿嘿嘿嘿嘿嘿三月七~ 啊喂，怎么醒来时有点湿，一定是太热了流太多汗了，对吧……`;
+                // @ts-ignore
+                updates.general.romance += 10; updates.general.mindset += 10;
+            } else {
+                resultText = "这一觉睡得天昏地暗，感觉整个人都升华了。";
+            }
+        }
+
+        const newState = { ...state, ...updates };
+        const diff = visualizer ? visualizer(oldState, newState) : [];
+        
+        setWeekendResult({ activity, resultText, diff });
+        setState(prev => ({ ...prev, ...updates }));
+    };
+
+    const confirmWeekendActivity = () => {
+        setWeekendResult(null);
+        setState(prev => {
+             const newPoints = prev.weekendActionPoints - 1;
+             if (newPoints <= 0) {
+                 if (prev.activeChallengeId === 'c_sleep_king' && !prev.hasSleptThisWeek) {
+                     return { ...prev, weekendActionPoints: 0, isWeekend: false, isPlaying: false, phase: Phase.ENDING, log: [...prev.log, { message: "你这周没有睡觉，困死了！！！(挑战失败)", type: 'error', timestamp: Date.now() }] };
+                 }
+                 return { ...prev, weekendActionPoints: 0, isWeekend: false, isPlaying: true, week: prev.week + 1, hasSleptThisWeek: false };
+             }
+             return { ...prev, weekendActionPoints: newPoints };
+        });
+    };
+    
+    const calculateRank = (score: number, phase: Phase) => {
+        let maxScore = 750;
+        if (phase === Phase.CSP_EXAM || phase === Phase.NOIP_EXAM) {
+            maxScore = 400; 
+        }
+        
+        const percentage = score / maxScore;
+        const totalStudents = 633;
+        
+        const mean = 0.68;
+        const std = 0.12;
+        const z = (percentage - mean) / std;
+        
+        let percentile = 0.5 * (1 + Math.sign(z) * Math.sqrt(1 - Math.exp(-2 * z * z / Math.PI)));
+        
+        if (percentage < 0.1) percentile = 0; 
+        
+        if (score >= maxScore * 0.99) percentile = 1;
+        else if (percentage > 0.999) percentile = 0.999;
+        
+        const rank = Math.max(1, Math.floor(totalStudents * (1 - percentile)));
+        return rank;
+    };
+
+    const handleExamFinish = (result: ExamResult) => {
+        const rank = calculateRank(result.totalScore, state.phase);
+        const isOI = [Phase.CSP_EXAM, Phase.NOIP_EXAM].includes(state.phase);
+        const resultWithRank: ExamResult = { ...result, rank, type: isOI ? 'COMPETITION' : 'ACADEMIC' };
+        
+        let newClassName = state.className;
+        if (state.phase === Phase.PLACEMENT_EXAM) {
+             if (rank <= 200) newClassName = "一类实验班";
+             else if (rank <= 400) newClassName = "二类实验班";
+             else newClassName = "普通班";
+        }
+
+        setState(prev => ({ 
+            ...prev, 
+            examResult: resultWithRank, 
+            popupExamResult: resultWithRank,
+            midtermRank: state.phase === Phase.MIDTERM_EXAM ? rank : prev.midtermRank,
+            className: newClassName
+        }));
+    };
+    
+    const closeCompetitionPopup = () => setState(prev => ({ ...prev, popupCompetitionResult: null }));
+    
+    const closeExamResult = () => {
+        setState(prev => {
+            const nextState = { ...prev, popupExamResult: null };
+            
+            if (prev.phase === Phase.MIDTERM_EXAM) {
+                 return { ...nextState, phase: Phase.SEMESTER_1, week: 12, isPlaying: true };
+            }
+            if (prev.phase === Phase.PLACEMENT_EXAM) {
+                 return { ...nextState, phase: Phase.SEMESTER_1, week: 1, totalWeeksInPhase: 21, isPlaying: true };
+            }
+            if (prev.phase === Phase.FINAL_EXAM) {
+                 return { ...nextState, phase: Phase.ENDING, isPlaying: false };
+            }
+            if ([Phase.CSP_EXAM, Phase.NOIP_EXAM].includes(prev.phase)) {
+                 return { ...nextState, phase: Phase.SEMESTER_1, week: prev.week + 1, totalWeeksInPhase: 21, isPlaying: true };
+            }
+            return { ...nextState, isPlaying: true };
+        });
+    };
+
+    const closeMiniGame = (res: Partial<GameState>) => setState(prev => ({ ...prev, activeMiniGame: null, ...res }));
+    
+    // Manual Achievement Check Function
+    const checkAchievements = () => {
+        const isEligibleMode = state.difficulty === 'REALITY' || !!state.activeChallengeId;
+        if (!isEligibleMode) {
+            console.warn('❌ 成就检查仅在 REALITY 难度或挑战模式下进行');
+            return;
+        }
+
+        const newUnlocked: string[] = [];
+        const failedConditions: string[] = [];
+        
+        const add = (id: string, condition: boolean, reason: string) => { 
+            if (condition) {
+                if (!state.unlockedAchievements.includes(id) && !newUnlocked.includes(id)) {
+                    newUnlocked.push(id);
+                    console.log(`  ✓ ${ACHIEVEMENTS[id]?.title || id}`);
+                }
+            } else {
+                failedConditions.push(`${ACHIEVEMENTS[id]?.title || id}: ${reason}`);
+            }
+        };
+
+        console.log('📊 开始检查成就...\n当前状态:');
+        console.log(`  金钱: ${state.general.money}`);
+        console.log(`  睡眠: ${state.sleepCount}次`);
+        console.log(`  拒绝: ${state.rejectionCount}次`);
+        console.log(`  血量: ${state.general.health}`);
+        console.log(`  魅力: ${state.general.romance}\n正在检查条件:`);
+
+        add('rich', state.general.money >= 200, `需要200+，当前${state.general.money}`);
+        add('in_debt', state.general.money <= -250, `需要-250以下，当前${state.general.money}`);
+        add('sleep_god', state.sleepCount >= 10, `需要10次，当前${state.sleepCount}`);
+        add('nice_person', state.rejectionCount >= 5, `需要5次，当前${state.rejectionCount}`);
+        add('romance_master', state.general.romance >= 95, `需要95+，当前${state.general.romance}`);
+        add('survival', 
+            state.general.health < 10 && state.phase === Phase.SEMESTER_1 && state.week > 10,
+            `需要血量<10且在学期1周数>10`
+        );
+
+        // Academic Achievements Check
+        if (state.examResult) {
+            const isAcademic = state.examResult.type === 'ACADEMIC';
+            if (isAcademic) {
+                add('top_rank', state.examResult.rank === 1, `需要排名第1，当前${state.examResult.rank}`);
+                add('bottom_rank', 
+                    state.examResult.totalStudents && state.examResult.rank === state.examResult.totalStudents,
+                    `需要排名最后`
+                );
+                
+                const isFullScore = Object.entries(state.examResult.scores).some(([subj, score]) => {
+                    const max = ['chinese', 'math', 'english'].includes(subj) ? 150 : 100;
+                    return (score as number) >= max;
+                });
+                add('nerd', isFullScore, '需要任意科目满分');
+            }
+        } else {
+            failedConditions.push('top_rank, bottom_rank, nerd: 需要有考试结果');
+        }
+
+        console.log('\n未解锁的条件:');
+        if (failedConditions.length === 0) {
+            console.log('  (所有条件已检查)');
+        } else {
+            failedConditions.forEach(c => console.log(`  ✗ ${c}`));
+        }
+
+        if (newUnlocked.length > 0) {
+            const lastId = newUnlocked[newUnlocked.length - 1];
+            setState(prev => ({
+                ...prev,
+                unlockedAchievements: [...prev.unlockedAchievements, ...newUnlocked],
+                achievementPopup: ACHIEVEMENTS[lastId]
+            }));
+            
+            setTimeout(() => setState(prev => ({ ...prev, achievementPopup: null })), 5000);
+            console.log(`\n✓ 解锁成就: ${newUnlocked.map(id => ACHIEVEMENTS[id]?.title || id).join(', ')}`);
+        } else {
+            console.log('\n暂无新成就解锁');
+        }
+    };
+    
+    const weekendOptions = WEEKEND_ACTIVITIES.filter(a => {
+        if (state.availableWeekendActivityIds) {
+            return state.availableWeekendActivityIds.includes(a.id) && (!a.condition || a.condition(state));
+        }
+        return !a.condition || a.condition(state);
+    });
+
+    return {
+        state, setState, weekendResult, setWeekendResult, hasSave, saveGame, loadGame,
+        startGameState, handleChoice, handleEventConfirm, handleClubSelect, handleShopPurchase, 
+        handleWeekendActivityClick, confirmWeekendActivity, handleExamFinish, closeCompetitionPopup, closeExamResult, closeMiniGame,
+        weekendOptions, checkAchievements
+    };
+};
