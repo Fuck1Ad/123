@@ -145,10 +145,10 @@
   </div>
 
   <script>
-	// 我的
-	// const SUPABASE_URL = 'https://xbtvtpfkrroxcatslfbh.supabase.co';
-	// const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhidHZ0cGZrcnJveGNhdHNsZmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MzgxMzgsImV4cCI6MjA4NTIxNDEzOH0.0rquSa4goz7s6bRJnG9VBHjat2YQB62Gqs40iUDimHs';
-	// 原来的
+    // 我的
+    // const SUPABASE_URL = 'https://xbtvtpfkrroxcatslfbh.supabase.co';
+    // const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhidHZ0cGZrcnJveGNhdHNsZmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MzgxMzgsImV4cCI6MjA4NTIxNDEzOH0.0rquSa4goz7s6bRJnG9VBHjat2YQB62Gqs40iUDimHs';
+    // 原来的
     const SUPABASE_URL = 'https://qmgfcirrgwzcmmyjnecn.supabase.co';
     const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFtZ2ZjaXJyZ3d6Y21teWpuZWNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwMzY2NzQsImV4cCI6MjA4MzYxMjY3NH0.CU4roI0pWPHARNydPu_EeUBoz7G2dtxhw9InUFSBZ80';
 
@@ -184,22 +184,58 @@
       const name = document.getElementById('player_name').value.trim();
       const scoreVal = document.getElementById('score').value;
       const difficulty = document.getElementById('difficulty').value || null;
-      const title = document.getElementById('title').value.trim() || null;
-      const diytitle = document.getElementById('custom-title-input') || null;
       const challenge_id = document.getElementById('challenge_id').value || null;
-      const rank = document.getElementById('rank').value.trim() || null;
+
+      // 1. 获取下拉框的原始值
+      let title = document.getElementById('title').value.trim(); // 使用 let 以便修改
+      let rank = document.getElementById('rank').value.trim();   // 使用 let 以便修改
 
       if (!name) { showResult(false,'请输入玩家名称'); return; }
       if (scoreVal === '') { showResult(false,'请输入分数'); return; }
       const score = Number(scoreVal);
       if (!Number.isFinite(score)) { showResult(false,'分数必须为数字'); return; }
 
+      // 2. --- 修正逻辑：根据原始值判断并获取自定义输入框的内容 ---
+      if (title === '自选') {
+        // 获取自定义输入框元素
+        const customTitleElement = document.getElementById('custom-title-input');
+        // 安全检查：元素存在后再取值
+        if (customTitleElement) {
+            // 更新 title 变量为自定义输入框的值
+            title = customTitleElement.value.trim();
+        } else {
+            // 如果元素不存在，置为 null
+            title = null; 
+        }
+      }
+
+      if (rank === '自选') {
+        // 获取自定义输入框元素
+        const customRankElement = document.getElementById('custom-rank-input');
+        // 安全检查：元素存在后再取值
+        if (customRankElement) {
+            // 更新 rank 变量为自定义输入框的值
+            rank = customRankElement.value.trim();
+        } else {
+            // 如果元素不存在，置为 null
+            rank = null;
+        }
+      }
+
+      // 3. 构建 details 对象，只包含非 null 的字段
+      let details = null;
+      if (title !== null || rank !== null) {
+        details = {};
+        if (title !== null) details.title = title;
+        if (rank !== null) details.rank = rank;
+      }
+
       const entry = {
         player_name: name,
         score: score,
         difficulty: difficulty,
         challenge_id: challenge_id,
-        details: title === '自选' ? { title: diytitle.value.trim(), rank: rank } : (title ? { title: title, rank: rank } : null)
+        details: details // 使用构建好的 details 对象
       };
 
       try {
@@ -219,6 +255,7 @@
       document.getElementById('upload').click();
     };
   </script>
+  <!-- 动态创建输入框的脚本块，放置在主逻辑之后，但确保在DOM加载完成后执行 -->
   <script>
   // --- 处理 #title ---
   const titleSelect = document.getElementById('title');
