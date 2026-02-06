@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useRef } from 'react';
 import { Difficulty, GeneralStats, Talent, Phase, GameState, Challenge } from './types';
 import { DIFFICULTY_PRESETS } from './data/constants';
@@ -75,63 +75,8 @@ const App: React.FC = () => {
       state, setState, weekendResult, setWeekendResult, hasSave, saveGame, loadGame,
       startGameState, handleChoice, handleEventConfirm, handleClubSelect, handleShopPurchase, 
       handleWeekendActivityClick, confirmWeekendActivity, handleExamFinish, closeCompetitionPopup, closeExamResult, closeMiniGame,
-      weekendOptions, checkAchievements
+      weekendOptions 
   } = useGameLogic();
-
-
-  // --- Debugging & Dev Tools ---
-    // React.useEffect(() => {
-    //     // @ts-ignore
-    //     window.gameState = state;
-    //     // @ts-ignore
-    //     window.gameAPI = {
-    //     state,
-    //     setState,
-    //     refresh: () => setState(p => ({ ...p })),
-    //     saveGame,
-    //     loadGame,
-    //     checkAchievements,
-    //     unlockAchievement: (id: string) => {
-    //         const { ACHIEVEMENTS } = require('./data/mechanics');
-    //         if (!ACHIEVEMENTS[id]) {
-    //         console.warn(`❌ 成就 '${id}' 不存在`);
-    //         return;
-    //         }
-    //         setState(prev => {
-    //         if (prev.unlockedAchievements.includes(id)) {
-    //             console.log(`⚠️ 成就 '${ACHIEVEMENTS[id].title}' 已解锁`);
-    //             return prev;
-    //         }
-    //         return {
-    //             ...prev,
-    //             unlockedAchievements: [...prev.unlockedAchievements, id],
-    //             achievementPopup: ACHIEVEMENTS[id]
-    //         };
-    //         });
-    //         setTimeout(() => setState(p => ({ ...p, achievementPopup: null })), 5000);
-    //         console.log(`✓ 已解锁成就: ${ACHIEVEMENTS[id].title}`);
-    //     },
-    //     unlockAllAchievements: () => {
-    //         const { ACHIEVEMENTS } = require('./data/mechanics');
-    //         setState(prev => ({
-    //         ...prev,
-    //         unlockedAchievements: Object.keys(ACHIEVEMENTS)
-    //         }));
-    //         console.log(`✓ 已解锁全部${Object.keys(ACHIEVEMENTS).length}个成就`);
-    //     },
-    //     exportState: () => JSON.stringify(state, null, 2),
-    //     importState: (json: string) => {
-    //         try {
-    //         const loaded = JSON.parse(json);
-    //         setState(loaded);
-    //         return '成功导入状态';
-    //         } catch (e) {
-    //         return `导入失败: ${e}`;
-    //         }
-    //     }
-    //     };
-    // }, [state, setState, saveGame, loadGame, checkAchievements]);
-    // -- End Debugging & Dev Tools ---
 
   // Scroll Log Effect
   React.useEffect(() => {
@@ -226,12 +171,11 @@ const App: React.FC = () => {
       
       {/* Toast */}
       {state.achievementPopup && (
-          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-[60] bg-gradient-to-r from-yellow-400 to-amber-400 text-slate-900 px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-fadeIn border-2 border-yellow-300">
-              <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-yellow-500 text-2xl shadow-lg border-2 border-yellow-300 animate-bounce"><i className={`fas ${state.achievementPopup.icon}`}></i></div>
+          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-[60] bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-fadeIn border border-slate-700">
+              <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-slate-900 text-xl shadow-lg border-2 border-white"><i className={`fas ${state.achievementPopup.icon}`}></i></div>
               <div>
-                  <div className="text-xs font-bold text-yellow-700 uppercase tracking-widest">🎉 成就解锁</div>
-                  <div className="font-black text-lg text-slate-800">{state.achievementPopup.title}</div>
-                  <div className="text-sm text-slate-700">{state.achievementPopup.description}</div>
+                  <div className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">Achievement Unlocked</div>
+                  <div className="font-black text-lg">{state.achievementPopup.title}</div>
               </div>
           </div>
       )}

@@ -66,20 +66,6 @@ export const DIFFICULTY_PRESETS: Record<Exclude<Difficulty, 'CUSTOM'>, { label: 
             money: 20,
             efficiency: 8
         }
-    },
-    'AI_STORY': {
-        label: 'AI叙事',
-        desc: '让AI给你讲故事',
-        color: 'bg-gray-500',
-        stats: {
-            mindset: 50,
-            experience: 50,
-            luck: 50,
-            romance: 50,
-            health: 100,
-            money: 100,
-            efficiency: 20
-        }
     }
 };
 
