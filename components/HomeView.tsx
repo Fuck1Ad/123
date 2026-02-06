@@ -242,6 +242,8 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                      </div>
 
                      {challenges.length > 0 && (
+                        //            修改这里可以修改挑战按钮的链接，目前是默认第一个挑战（欠债挑战）
+                        //            你可以根据需要调整为特定挑战的 ID，欠债挑战可以使用challenges[0]来挑战，睡王是challenges[1]，如果你添加了新的挑战，可以在WEEKLY_CHALLENGES里找到对应的ID来设置
                         <button onClick={() => onStart(challenges[0])} className="mt-4 w-full py-4 bg-white text-indigo-700 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-lg flex items-center justify-center gap-2 active:scale-95 relative z-20">
                             <i className="fas fa-bolt"></i> 立即挑战
                         </button>

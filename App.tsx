@@ -80,58 +80,57 @@ const App: React.FC = () => {
 
 
   // --- Debugging & Dev Tools ---
-  // Expose game state and API for console debugging
-//   React.useEffect(() => {
-//     // @ts-ignore
-//     window.gameState = state;
-//     // @ts-ignore
-//     window.gameAPI = {
-//       state,
-//       setState,
-//       refresh: () => setState(p => ({ ...p })),
-//       saveGame,
-//       loadGame,
-//       checkAchievements,
-//       unlockAchievement: (id: string) => {
-//         const { ACHIEVEMENTS } = require('./data/mechanics');
-//         if (!ACHIEVEMENTS[id]) {
-//           console.warn(`❌ 成就 '${id}' 不存在`);
-//           return;
-//         }
-//         setState(prev => {
-//           if (prev.unlockedAchievements.includes(id)) {
-//             console.log(`⚠️ 成就 '${ACHIEVEMENTS[id].title}' 已解锁`);
-//             return prev;
-//           }
-//           return {
-//             ...prev,
-//             unlockedAchievements: [...prev.unlockedAchievements, id],
-//             achievementPopup: ACHIEVEMENTS[id]
-//           };
-//         });
-//         setTimeout(() => setState(p => ({ ...p, achievementPopup: null })), 5000);
-//         console.log(`✓ 已解锁成就: ${ACHIEVEMENTS[id].title}`);
-//       },
-//       unlockAllAchievements: () => {
-//         const { ACHIEVEMENTS } = require('./data/mechanics');
-//         setState(prev => ({
-//           ...prev,
-//           unlockedAchievements: Object.keys(ACHIEVEMENTS)
-//         }));
-//         console.log(`✓ 已解锁全部${Object.keys(ACHIEVEMENTS).length}个成就`);
-//       },
-//       exportState: () => JSON.stringify(state, null, 2),
-//       importState: (json: string) => {
-//         try {
-//           const loaded = JSON.parse(json);
-//           setState(loaded);
-//           return '成功导入状态';
-//         } catch (e) {
-//           return `导入失败: ${e}`;
-//         }
-//       }
-//     };
-//   }, [state, setState, saveGame, loadGame, checkAchievements]);
+    // React.useEffect(() => {
+    //     // @ts-ignore
+    //     window.gameState = state;
+    //     // @ts-ignore
+    //     window.gameAPI = {
+    //     state,
+    //     setState,
+    //     refresh: () => setState(p => ({ ...p })),
+    //     saveGame,
+    //     loadGame,
+    //     checkAchievements,
+    //     unlockAchievement: (id: string) => {
+    //         const { ACHIEVEMENTS } = require('./data/mechanics');
+    //         if (!ACHIEVEMENTS[id]) {
+    //         console.warn(`❌ 成就 '${id}' 不存在`);
+    //         return;
+    //         }
+    //         setState(prev => {
+    //         if (prev.unlockedAchievements.includes(id)) {
+    //             console.log(`⚠️ 成就 '${ACHIEVEMENTS[id].title}' 已解锁`);
+    //             return prev;
+    //         }
+    //         return {
+    //             ...prev,
+    //             unlockedAchievements: [...prev.unlockedAchievements, id],
+    //             achievementPopup: ACHIEVEMENTS[id]
+    //         };
+    //         });
+    //         setTimeout(() => setState(p => ({ ...p, achievementPopup: null })), 5000);
+    //         console.log(`✓ 已解锁成就: ${ACHIEVEMENTS[id].title}`);
+    //     },
+    //     unlockAllAchievements: () => {
+    //         const { ACHIEVEMENTS } = require('./data/mechanics');
+    //         setState(prev => ({
+    //         ...prev,
+    //         unlockedAchievements: Object.keys(ACHIEVEMENTS)
+    //         }));
+    //         console.log(`✓ 已解锁全部${Object.keys(ACHIEVEMENTS).length}个成就`);
+    //     },
+    //     exportState: () => JSON.stringify(state, null, 2),
+    //     importState: (json: string) => {
+    //         try {
+    //         const loaded = JSON.parse(json);
+    //         setState(loaded);
+    //         return '成功导入状态';
+    //         } catch (e) {
+    //         return `导入失败: ${e}`;
+    //         }
+    //     }
+    //     };
+    // }, [state, setState, saveGame, loadGame, checkAchievements]);
     // -- End Debugging & Dev Tools ---
 
   // Scroll Log Effect
