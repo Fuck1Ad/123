@@ -17,11 +17,11 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export interface LeaderboardEntry {
     id: string;
+    created_at: string;
     player_name: string;
     score: number;
     challenge_id: string | null;
     difficulty: string;
-    created_at: string;
     details: {
         title: string;
         rank: string;

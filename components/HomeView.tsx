@@ -63,7 +63,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
             try {
                 // Fetch Top Scores for the active challenge
                 if (activeChallenge) {
-                    const { data } = await getLeaderboard(activeChallenge.id, 5);
+                    const { data } = await getLeaderboard(activeChallenge.id, (selectedDifficulty === 'CUSTOM' ? 7 : 5));
                     if (data) {
                         // @ts-ignore
                         setTopScores(data);
@@ -76,7 +76,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
             }
         };
         fetchScores();
-    }, [activeChallenge]);
+    }, [activeChallenge, selectedDifficulty]);
 
     const openLeaderboard = (id: string | null) => {
         setLeaderboardInitId(id);
@@ -165,11 +165,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                          {selectedDifficulty === 'CUSTOM' && (
                              <div className="mb-6 bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 gap-x-8 gap-y-3 shadow-inner">
                                 {(Object.keys(customStats) as (keyof GeneralStats)[]).map(key => (
-                                    <div 
-                                        key={key} 
-                                        // 使用三元运算符根据 key 添加不同的 gap
-                                        className={`flex items-center ${key === 'experience' ? 'gap-5' : 'gap-3'}`} 
-                                    >
+                                    <div key={key} className="flex items-center gap-3">
                                         {/* 这里是你的 span, input, 和另一个 span */}
                                         <span className="text-[10px] font-bold text-slate-500 w-12 uppercase">{key}</span>
                                         <input 
@@ -178,7 +174,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                                             max="100" 
                                             value={customStats[key]} 
                                             onChange={(e) => onCustomStatsChange({...customStats, [key]: parseInt(e.target.value)})} 
-                                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                            className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 ${key === 'luck' ? '-ml-[18px]' : (key === 'mindset' ? '-ml-[7px]' : (key === 'experience' ? 'ml-[9px]' : (key === 'health' ? '-ml-[7px]' : (key === 'efficiency' ? 'ml-[2px]' : (key === 'money' ? '-ml-[6px]' : '')))))}`}
                                         />
                                         <span className="text-xs font-bold text-indigo-600 w-8 text-right">{customStats[key]}</span>
                                     </div>
@@ -257,7 +253,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                                  
                                  <div className="flex-1 bg-black/20 rounded-2xl p-4 backdrop-blur-md border border-white/10 overflow-hidden flex flex-col">
                                      <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
-                                         <span className="text-xs font-bold opacity-80 uppercase">Top 5 Players</span>
+                                         <span className="text-xs font-bold opacity-80 uppercase">Top {selectedDifficulty === 'CUSTOM' ? 7 : 5} Players</span>
                                          <i className="fas fa-crown text-yellow-400 text-xs"></i>
                                      </div>
                                      <div className="space-y-3 overflow-y-auto custom-scroll-light pr-1">
@@ -266,8 +262,8 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                                                  <div className="flex items-center gap-3">
                                                      <span className={`font-black w-4 text-center ${idx === 0 ? 'text-yellow-300' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'opacity-60'}`}>{idx + 1}</span>
                                                      <div className="flex flex-col">
-                                                         <span className="font-bold text-white truncate max-w-[80px]">{entry.player_name}</span>
-                                                         <span className="text-[10px] opacity-60">{entry.details.rank}</span>
+                                                         <span className="font-bold text-white truncate max-w-[130px]">{entry.player_name}</span>
+                                                         <span className="text-[10px] opacity-60 truncate max-w-[130px]">{entry.details.rank}</span>
                                                      </div>
                                                  </div>
                                                  <span className="font-mono font-bold opacity-90">{Math.floor(entry.score)}</span>
