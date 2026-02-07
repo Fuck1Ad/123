@@ -164,16 +164,26 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
 
                          {selectedDifficulty === 'CUSTOM' && (
                              <div className="mb-6 bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 gap-x-8 gap-y-3 shadow-inner">
-                                 {(Object.keys(customStats) as (keyof GeneralStats)[]).map(key => (
-                                     <div key={key} className="flex items-center gap-3">
-                                         <span className="text-[10px] font-bold text-slate-500 w-12 uppercase">{key}</span>
-                                         <input type="range" min="0" max="100" value={customStats[key]} onChange={(e) => onCustomStatsChange({...customStats, [key]: parseInt(e.target.value)})} 
+                                {(Object.keys(customStats) as (keyof GeneralStats)[]).map(key => (
+                                    <div 
+                                        key={key} 
+                                        // 使用三元运算符根据 key 添加不同的 gap
+                                        className={`flex items-center ${key === 'experience' ? 'gap-6' : 'gap-3'}`} 
+                                    >
+                                        {/* 这里是你的 span, input, 和另一个 span */}
+                                        <span className="text-[10px] font-bold text-slate-500 w-12 uppercase">{key}</span>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="100" 
+                                            value={customStats[key]} 
+                                            onChange={(e) => onCustomStatsChange({...customStats, [key]: parseInt(e.target.value)})} 
                                             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                                         />
-                                         <span className="text-xs font-bold text-indigo-600 w-8 text-right">{customStats[key]}</span>
-                                     </div>
-                                 ))}
-                             </div>
+                                        />
+                                        <span className="text-xs font-bold text-indigo-600 w-8 text-right">{customStats[key]}</span>
+                                    </div>
+                                ))}
+                            </div>
                          )}
 
                          <div className="flex gap-4">
