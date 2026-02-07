@@ -168,7 +168,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                                     <div 
                                         key={key} 
                                         // 使用三元运算符根据 key 添加不同的 gap
-                                        className={`flex items-center ${key === 'experience' ? 'gap-6' : 'gap-3'}`} 
+                                        className={`flex items-center ${key === 'experience' ? 'gap-5' : 'gap-3'}`} 
                                     >
                                         {/* 这里是你的 span, input, 和另一个 span */}
                                         <span className="text-[10px] font-bold text-slate-500 w-12 uppercase">{key}</span>
