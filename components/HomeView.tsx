@@ -174,7 +174,7 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                                             max="100" 
                                             value={customStats[key]} 
                                             onChange={(e) => onCustomStatsChange({...customStats, [key]: parseInt(e.target.value)})} 
-                                            className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 ${key === 'luck' ? '-ml-[18px]' : (key === 'mindset' ? '-ml-[7px]' : (key === 'experience' ? 'ml-[9px]' : (key === 'health' ? '-ml-[7px]' : (key === 'efficiency' ? 'ml-[2px]' : (key === 'money' ? '-ml-[6px]' : '')))))}`}
+                                            className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 ${key === 'luck' ? '-ml-[18px]' : (key === 'mindset' ? '-ml-[7px]' : (key === 'experience' ? 'ml-[9px]' : (key === 'health' ? '-ml-[7px]' : (key === 'efficiency' ? 'ml-[2px]' : (key === 'money' ? '-ml-[6px]' : '')))))} style={{ width: '100%' }}`}
                                         />
                                         <span className="text-xs font-bold text-indigo-600 w-8 text-right">{customStats[key]}</span>
                                     </div>
