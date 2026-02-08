@@ -23,19 +23,19 @@ const SPONSORS = [
     { name: '爱发电用户_s45p', avatar: 'https://pic1.afdiancdn.com/default/avatar/avatar-blue.png', label: '发电榜三', id: 's3' },
 ];
 
-// 高按钮版本（现用）：
-const UtilityButton: React.FC<{ icon: string, label: string, onClick: () => void, color: string }> = ({ icon, label, onClick, color }) => (
-    <button onClick={onClick} className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-2xl transition-all active:scale-95 shadow-sm ${color}`}>
-        <i className={`fas ${icon} text-lg md:text-xl mb-1`}></i>
-        <span className="text-[10px] md:text-xs font-bold">{label}</span>
-    </button>
-);
-// 矮按钮版本（已废弃）：
-// const UtilityButton = ({ icon, label, onClick, color }: { icon: string, label: string, onClick: () => void, color: string }) => (
-//     <button onClick={onClick} className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${color}`}>
-//         <i className={`fas ${icon}`}></i> {label}
+// 高按钮版本
+// const UtilityButton: React.FC<{ icon: string, label: string, onClick: () => void, color: string }> = ({ icon, label, onClick, color }) => (
+//     <button onClick={onClick} className={`flex-shrink-0 flex flex-col items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-2xl transition-all active:scale-95 shadow-sm ${color}`}>
+//         <i className={`fas ${icon} text-lg md:text-xl mb-1`}></i>
+//         <span className="text-[10px] md:text-xs font-bold">{label}</span>
 //     </button>
 // );
+// 矮按钮版本
+const UtilityButton = ({ icon, label, onClick, color }: { icon: string, label: string, onClick: () => void, color: string }) => (
+    <button onClick={onClick} className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${color}`}>
+        <i className={`fas ${icon}`}></i> {label}
+    </button>
+);
 
 const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyChange, customStats, onCustomStatsChange, onStart, hasSave, onLoadGame, unlockedAchievements }) => {
     const [showChangelog, setShowChangelog] = React.useState(false);
@@ -162,25 +162,24 @@ const HomeView: React.FC<HomeViewProps> = ({ selectedDifficulty, onDifficultyCha
                              </div>
                          </div>
 
-                         {selectedDifficulty === 'CUSTOM' && (
-                             <div className="mb-6 bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 gap-x-8 gap-y-3 shadow-inner">
-                                {(Object.keys(customStats) as (keyof GeneralStats)[]).map(key => (
-                                    <div key={key} className="flex items-center gap-3">
-                                        {/* 这里是你的 span, input, 和另一个 span */}
-                                        <span className="text-[10px] font-bold text-slate-500 w-12 uppercase">{key}</span>
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="100" 
-                                            value={customStats[key]} 
-                                            onChange={(e) => onCustomStatsChange({...customStats, [key]: parseInt(e.target.value)})} 
-                                            className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 ${key === 'luck' ? '-ml-[18px]' : (key === 'mindset' ? '-ml-[7px]' : (key === 'experience' ? 'ml-[9px]' : (key === 'health' ? '-ml-[7px]' : (key === 'efficiency' ? 'ml-[2px]' : (key === 'money' ? '-ml-[6px]' : '')))))} style={{ width: '100%' }}`}
-                                        />
-                                        <span className="text-xs font-bold text-indigo-600 w-8 text-right">{customStats[key]}</span>
-                                    </div>
-                                ))}
-                            </div>
-                         )}
+                        {selectedDifficulty === 'CUSTOM' && (
+                            <div className="mb-6 bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 gap-x-8 gap-y-3 shadow-inner">
+                               {(Object.keys(customStats) as (keyof GeneralStats)[]).map(key => (
+                                   <div key={key} className="flex items-center gap-1">
+                                       <span className="text-[10px] font-bold text-slate-500 w-16 text-right uppercase shrink-0">{key}</span>
+                                       <input 
+                                           type="range" 
+                                           min="0" 
+                                           max="100" 
+                                           value={customStats[key]} 
+                                           onChange={(e) => onCustomStatsChange({...customStats, [key]: parseInt(e.target.value)})} 
+                                           className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                       />
+                                       <span className="text-xs font-bold text-indigo-600 w-8 text-left shrink-0 ml-2">{customStats[key]}</span>
+                                   </div>
+                               ))}
+                           </div>
+                        )}
 
                          <div className="flex gap-4">
                              <button onClick={() => onStart()} className="flex-1 md:w-auto bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-xl shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-3 active:scale-95">
