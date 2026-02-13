@@ -353,6 +353,97 @@ export const useGameLogic = () => {
         return () => clearTimeout(timer);
     }, [state.isPlaying, state.currentEvent, state.isWeekend, state.week, state.phase, state.eventQueue.length, state.midtermRank, advancePhase, state.competition, state.triggeredEvents, state.isAiGenerating, state.aiBuffer, state.recentEventIds]);
 
+    // --- Expose Game API to Window for Debugging ---
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            (window as any).gameapi = {
+                state,
+                // 主要状态
+                phase: state.phase,
+                week: state.week,
+                totalWeeksInPhase: state.totalWeeksInPhase,
+                isPlaying: state.isPlaying,
+                isWeekend: state.isWeekend,
+                weekendActionPoints: state.weekendActionPoints,
+
+                // 综合属性
+                general: state.general,
+                initialGeneral: state.initialGeneral,
+
+                // 科目
+                subjects: state.subjects,
+                selectedSubjects: state.selectedSubjects,
+
+                // OI相关
+                oiStats: state.oiStats,
+                competition: state.competition,
+                competitionResults: state.competitionResults,
+
+                // 社交与活动
+                club: state.club,
+                romancePartner: state.romancePartner,
+                className: state.className,
+
+                // 当前事件
+                currentEvent: state.currentEvent,
+                chainedEvent: state.chainedEvent,
+                eventResult: state.eventResult,
+                eventQueue: state.eventQueue,
+
+                // 考试结果
+                examResult: state.examResult,
+                midtermRank: state.midtermRank,
+                popupExamResult: state.popupExamResult,
+                popupCompetitionResult: state.popupCompetitionResult,
+
+                // 成就与挑战
+                difficulty: state.difficulty,
+                activeChallengeId: state.activeChallengeId,
+                unlockedAchievements: state.unlockedAchievements,
+                achievementPopup: state.achievementPopup,
+
+                // 状态
+                activeStatuses: state.activeStatuses,
+                isSick: state.isSick,
+                isGrounded: state.isGrounded,
+                debugMode: state.debugMode,
+                sleepCount: state.sleepCount,
+                rejectionCount: state.rejectionCount,
+
+                // 天赋与物品
+                talents: state.talents,
+                inventory: state.inventory,
+
+                // 其他
+                theme: state.theme,
+                log: state.log,
+                history: state.history,
+                triggeredEvents: state.triggeredEvents,
+                recentEventIds: state.recentEventIds,
+                aiBuffer: state.aiBuffer,
+                isAiGenerating: state.isAiGenerating,
+
+                // 辅助函数
+                saveGame: () => {
+                    saveGame();
+                    console.log('游戏已保存');
+                },
+                loadGame: () => {
+                    const success = loadGame();
+                    console.log(success ? '游戏已加载' : '加载失败');
+                    return success;
+                },
+                refresh: () => {
+                    setState(prev => ({ ...prev }));
+                    console.log('界面已刷新');
+                },
+                setState,
+                advancePhase,
+                startWeekend
+            };
+        }
+    }, [state]);
+
     const calculateWeeklyUpdates = (prevState: GameState) => {
         let moneyChange = 2; // Base weekly money
         if (prevState.activeChallengeId === 'c_debt_king') {
