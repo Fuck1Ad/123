@@ -103,8 +103,77 @@
 
 ## 辅助函数
 
-### `saveGame()`
+`saveGame()`
 保存游戏进度到本地存储。
 
 ```javascript
 window.gameapi.saveGame()
+```
+`loadGame()`
+从本地存储加载游戏进度。
+```javascript
+const success = window.gameapi.loadGame()
+// 返回: true 表示加载成功，false 表示加载失败
+```
+`refresh()`
+强制刷新游戏界面。
+```javascript
+window.gameapi.refresh()
+```
+`setState(newState)`
+更新游戏状态。
+```javascript
+window.gameapi.setState({ 
+    isPlaying: true,
+    general: { ...gameapi.general, money: 1000 }
+})
+```
+`advancePhase()`
+进入下一个游戏阶段.
+```javascript
+window.gameapi.advancePhase()
+```
+`startWeekend()`
+开启周末活动界面。
+```javascript
+window.gameapi.startWeekend()
+```
+---
+### 使用实例
+#### 查看当前属性
+```javascript
+console.log(window.gameapi.general)
+```
+#### 修改属性
+```javascript
+window.gameapi.setState({
+    general: { ...window.gameapi.general, money: 99999 }
+})
+```
+#### 保存并刷新
+```javascript
+window.gameapi.saveGame()
+window.gameapi.refresh()
+```
+#### 跳过当前事件
+```javascript
+window.gameapi.setState({
+    currentEvent: null,
+    isPlaying: true
+})
+```
+#### 添加天赋
+```javascript
+window.gameapi.setState({
+    talents: [...window.gameapi.talents, { 
+        id: 'debug_talent', 
+        name: '调试天赋',
+        description: '由控制台添加',
+        rarity: 'legendary',
+        cost: 0
+    }]
+})
+```
+---
+### 额外说明
+gameapi在hooks/useGameApi.tsx中定义（第356行，需要解封），可以直接在控制台中使用。
